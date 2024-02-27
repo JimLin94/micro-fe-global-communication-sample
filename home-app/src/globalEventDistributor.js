@@ -14,6 +14,8 @@ function observeStore(store, select, onChange) {
   return unsubscribe;
 }
 
+const CUSTOM_EVENT_NAME_SUFFIX = 'StateObserver';
+
 export class GlobalEventDistributor {
   constructor() {
     this.stores = {};
@@ -27,9 +29,38 @@ export class GlobalEventDistributor {
   async dispatch(appName, actionType, selector) {
     this.stores[appName].dispatch({ type: actionType });
     return new Promise((resolve) => {
-      observeStore(this.stores[appName], selector, (currentState) => {
-        resolve(currentState);
-      });
+      const unsubscribe = observeStore(
+        this.stores[appName],
+        selector,
+        (currentState) => {
+          const event = new CustomEvent(
+            `${appName}${CUSTOM_EVENT_NAME_SUFFIX}`,
+            {
+              detail: {
+                appName,
+                state: currentState,
+              },
+            },
+          );
+          console.log('dispatching event');
+          window.dispatchEvent(event);
+          resolve(currentState);
+        },
+      );
+
+      unsubscribe();
     });
+  }
+
+  stateChangeListener(appName, callback) {
+    window.addEventListener(`${appName}${CUSTOM_EVENT_NAME_SUFFIX}`, callback);
+    return {
+      remove: () => {
+        window.removeEventListener(
+          `${appName}${CUSTOM_EVENT_NAME_SUFFIX}`,
+          callback,
+        );
+      },
+    };
   }
 }
